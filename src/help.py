@@ -20,7 +20,7 @@ COMMAND_HELP = {
     "qadd": "!qadd <cita> - Agrega una cita al historial. Ejemplo: !qadd <nachi> esto queda para la posteridad",
     "qsearch": "!qsearch <texto> - Busca citas por texto o usuario. Ejemplo: !qsearch kubernetes",
     "subte": "!subte - Muestra el estado del Subte de Buenos Aires.",
-    "status": "!status <servicio> - Muestra el estado actual y uptime estimado de los ultimos 30 dias. Servicios: atlassian, claude, cloudflare, datadog (US1), digitalocean, discord, donweb, github, npm, openai. Ejemplo: !status github",
+    "status": "!status <servicio> - Muestra el estado actual y uptime estimado de los ultimos 30 dias. Servicios: atlassian, auth0, claude, cloudflare, datadog (US1), digitalocean, discord, donweb, github, npm, openai. Ejemplo: !status github",
     "underground": "!underground - Muestra el estado del Underground de Londres.",
     "ping": "!ping - Comprueba si el bot esta respondiendo.",
     "flip": "!flip - Tira una mesa. No requiere argumentos.",
