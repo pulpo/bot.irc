@@ -176,6 +176,40 @@ class StatusTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Auth0: DEGRADADO (Degraded, region EU-1)", message)
         self.assertIn("99.940%", message)
 
+    async def test_auth0_reports_status_when_uptime_request_fails(self):
+        home_response = Mock()
+        home_response.raise_for_status.return_value = None
+        home_response.text = auth0_html([auth0_region("US-1", impact="minor", incident="Degraded")])
+        ctx = unittest.mock.Mock()
+        ctx.send = AsyncMock()
+
+        with patch(
+            "src.commands.ctxstatus.requests.get",
+            side_effect=[home_response, requests.RequestException("boom")],
+        ):
+            await statusfunctx(ctx, "auth0")
+
+        message = ctx.send.await_args.args[0]
+        self.assertIn("Auth0: DEGRADADO (Degraded, region US-1)", message)
+        self.assertIn("no disponible", message)
+
+    async def test_auth0_reports_status_when_uptime_payload_is_invalid(self):
+        home_response = Mock()
+        home_response.raise_for_status.return_value = None
+        home_response.text = auth0_html([auth0_region("US-1")])
+        uptime_response = Mock()
+        uptime_response.raise_for_status.return_value = None
+        uptime_response.json.return_value = {"US-1": None}
+        ctx = unittest.mock.Mock()
+        ctx.send = AsyncMock()
+
+        with patch("src.commands.ctxstatus.requests.get", side_effect=[home_response, uptime_response]):
+            await statusfunctx(ctx, "auth0")
+
+        message = ctx.send.await_args.args[0]
+        self.assertIn("Auth0: UP", message)
+        self.assertIn("no disponible", message)
+
     async def test_auth0_failure_is_reported(self):
         ctx = unittest.mock.Mock()
         ctx.send = AsyncMock()

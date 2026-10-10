@@ -9,6 +9,7 @@ WINDOW_DAYS = 30
 
 AUTH0_STATUS_URL = "https://status.auth0.com"
 AUTH0_IMPACT_ORDER = {"none": 0, "minor": 1, "major": 2, "critical": 3}
+AUTH0_ERRORS = (requests.RequestException, KeyError, TypeError, ValueError, AttributeError, IndexError)
 
 STATUSPAGE_SERVICES = {
     "atlassian": ("Atlassian", "https://status.atlassian.com"),
@@ -102,18 +103,24 @@ async def auth0_statusfunctx(ctx):
     try:
         home_response = await asyncio.to_thread(requests.get, AUTH0_STATUS_URL, timeout=10)
         home_response.raise_for_status()
+        region, impact, name = parse_auth0_status(home_response.text)
+    except AUTH0_ERRORS:
+        await ctx.send("No se pudo consultar el estado de Auth0. Intenta nuevamente mas tarde.")
+        return
+
+    try:
         uptime_response = await asyncio.to_thread(requests.get, f"{AUTH0_STATUS_URL}/api/uptime", timeout=10)
         uptime_response.raise_for_status()
-
-        region, impact, name = parse_auth0_status(home_response.text)
         uptime = worst_auth0_uptime(uptime_response.json())
-        state = "UP" if impact == "none" else f"DEGRADADO ({name}, region {region})"
-        await ctx.send(
-            f"Auth0: {state} - Uptime reportado (90 dias, peor region): {uptime:.3f}% "
-            f"- Fuente: {AUTH0_STATUS_URL}"
-        )
-    except (requests.RequestException, KeyError, TypeError, ValueError, IndexError):
-        await ctx.send("No se pudo consultar el estado de Auth0. Intenta nuevamente mas tarde.")
+    except AUTH0_ERRORS:
+        uptime = None
+
+    state = "UP" if impact == "none" else f"DEGRADADO ({name}, region {region})"
+    uptime_text = f"{uptime:.3f}%" if uptime is not None else "no disponible"
+    await ctx.send(
+        f"Auth0: {state} - Uptime reportado (90 dias, peor region): {uptime_text} "
+        f"- Fuente: {AUTH0_STATUS_URL}"
+    )
 
 
 async def statusfunctx(ctx, service: str):
