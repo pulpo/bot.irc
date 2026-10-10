@@ -57,6 +57,7 @@ class StatusTests(unittest.IsolatedAsyncioTestCase):
         await statusfunctx(ctx, "gitlab")
 
         ctx.send.assert_awaited_once_with(f"Servicio no soportado. Servicios disponibles: {supported_services()}")
+        self.assertIn("auth0", supported_services())
 
     async def test_statuspage_service_uses_its_configured_endpoints(self):
         status_response = Mock()

@@ -25,7 +25,7 @@ STATUSPAGE_SERVICES = {
 
 
 def supported_services() -> str:
-    return ", ".join(STATUSPAGE_SERVICES)
+    return ", ".join(sorted([*STATUSPAGE_SERVICES, "auth0"]))
 
 
 def parse_timestamp(value: str) -> datetime:
