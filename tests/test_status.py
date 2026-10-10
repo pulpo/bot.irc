@@ -110,6 +110,47 @@ class StatusTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertAlmostEqual(worst_auth0_uptime(data), 99.94, places=5)
 
+    def test_worst_auth0_uptime_handles_numeric_values(self):
+        data = {"US-1": {"uptime90days": 99.98}, "AU": {"uptime90days": "99.999%+"}}
+
+        self.assertAlmostEqual(worst_auth0_uptime(data), 99.98, places=5)
+
+    def test_parse_auth0_status_handles_region_without_incidents(self):
+        html = auth0_html(
+            [
+                auth0_region("US-1", impact="major", incident="Outage"),
+                {"region": "US-3", "environment": "Production", "response": {"incidents": []}},
+            ]
+        )
+
+        self.assertEqual(parse_auth0_status(html), ("US-1", "major", "Outage"))
+
+    def test_parse_auth0_status_ignores_non_production_regions(self):
+        staging = auth0_region("EU-1", impact="critical", incident="Staging down")
+        staging["environment"] = "Staging"
+        html = auth0_html([auth0_region("US-1"), staging])
+
+        self.assertEqual(parse_auth0_status(html), ("US-1", "none", "All Systems Operational"))
+
+    def test_parse_auth0_status_requires_next_data(self):
+        with self.assertRaises(ValueError):
+            parse_auth0_status("<html>sin __NEXT_DATA__</html>")
+
+    async def test_auth0_parse_failure_is_reported(self):
+        home_response = Mock()
+        home_response.raise_for_status.return_value = None
+        home_response.text = "<html>sin __NEXT_DATA__</html>"
+        uptime_response = Mock()
+        uptime_response.raise_for_status.return_value = None
+        uptime_response.json.return_value = {"US-1": {"uptime90days": "99.99%"}}
+        ctx = unittest.mock.Mock()
+        ctx.send = AsyncMock()
+
+        with patch("src.commands.ctxstatus.requests.get", side_effect=[home_response, uptime_response]):
+            await statusfunctx(ctx, "auth0")
+
+        ctx.send.assert_awaited_once_with("No se pudo consultar el estado de Auth0. Intenta nuevamente mas tarde.")
+
     async def test_auth0_reports_worst_region_status_and_uptime(self):
         home_response = Mock()
         home_response.raise_for_status.return_value = None

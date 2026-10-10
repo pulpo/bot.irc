@@ -61,6 +61,12 @@ def estimated_uptime(incidents: list[dict], now: datetime) -> float:
     return max(0.0, 100.0 * (window_seconds - downtime) / window_seconds)
 
 
+def auth0_region_impact(region: dict) -> int:
+    """Return the worst impact level among a region's active incidents."""
+    incidents = region.get("response", {}).get("incidents") or []
+    return max((AUTH0_IMPACT_ORDER.get(incident.get("impact", "none"), 0) for incident in incidents), default=0)
+
+
 def parse_auth0_status(html: str) -> tuple[str, str, str]:
     """Return (region, impact, name) for the worst production region of Auth0."""
     match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html, re.S)
@@ -68,12 +74,14 @@ def parse_auth0_status(html: str) -> tuple[str, str, str]:
         raise ValueError("No se encontro __NEXT_DATA__ en la pagina de Auth0")
 
     data = json.loads(match.group(1))
-    regions = data["props"]["pageProps"]["activeIncidents"]
-    worst = max(
-        regions,
-        key=lambda region: AUTH0_IMPACT_ORDER.get(region["response"]["incidents"][0].get("impact", "none"), 0),
-    )
-    incident = worst["response"]["incidents"][0]
+    active = data["props"]["pageProps"]["activeIncidents"]
+    regions = [region for region in active if region.get("environment") == "Production"]
+    if not regions:
+        raise ValueError("Sin regiones de produccion de Auth0")
+
+    worst = max(regions, key=auth0_region_impact)
+    incidents = worst.get("response", {}).get("incidents") or [{}]
+    incident = max(incidents, key=lambda item: AUTH0_IMPACT_ORDER.get(item.get("impact", "none"), 0))
     return worst["region"], incident.get("impact", "none"), incident.get("name", "estado desconocido")
 
 
@@ -84,7 +92,7 @@ def worst_auth0_uptime(data: dict) -> float:
         raw = region.get("uptime90days")
         if not raw:
             continue
-        values.append(float(raw.rstrip("%+")))
+        values.append(float(str(raw).rstrip("%+")))
     if not values:
         raise ValueError("Sin datos de uptime de Auth0")
     return min(values)
@@ -101,10 +109,10 @@ async def auth0_statusfunctx(ctx):
         uptime = worst_auth0_uptime(uptime_response.json())
         state = "UP" if impact == "none" else f"DEGRADADO ({name}, region {region})"
         await ctx.send(
-            f"Auth0: {state} - Uptime estimado (90 dias, peor region): {uptime:.3f}% "
+            f"Auth0: {state} - Uptime reportado (90 dias, peor region): {uptime:.3f}% "
             f"- Fuente: {AUTH0_STATUS_URL}"
         )
-    except (requests.RequestException, KeyError, TypeError, ValueError):
+    except (requests.RequestException, KeyError, TypeError, ValueError, IndexError):
         await ctx.send("No se pudo consultar el estado de Auth0. Intenta nuevamente mas tarde.")
 
 
